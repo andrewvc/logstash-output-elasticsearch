@@ -219,6 +219,15 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # a timeout occurs, the request will be retried.
   config :timeout, :validate => :number
 
+  # Set script name for scripted update mode
+  config :script, :validate => :string, :default => ""
+
+  # Set variable name passed to script (scripted update)
+  config :script_var_name, :validate => :string, :default => "event"
+
+  # if enabled, script is in charge of creating non-existent document (scripted update)
+  config :scripted_upsert, :validate => :boolean, :default => false
+
   public
   def register
     @hosts = Array(@hosts)
@@ -252,9 +261,20 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
     common_options.merge! setup_basic_auth()
 
     # Update API setup
+    raise( Logstash::ConfigurationError,
+      "doc_as_upsert and scripted_upsert are mutually exclusive."
+    ) if @doc_as_upsert and @scripted_upsert
+
+    if ['node', 'transport'].include?(@protocol) and @script != ''
+      raise( Logstash::ConfigurationError,
+        "Scripted update for node and transport protocols is not implemented in elasticsearch output."
+      )
+    end
+
     update_options = {
-      :upsert => @upsert,
-      :doc_as_upsert => @doc_as_upsert
+      :doc_as_upsert => @doc_as_upsert,
+      :script_var_name => @script_var_name,
+      :scripted_upsert => @scripted_upsert
     }
     common_options.merge! update_options if @action == 'update'
 
@@ -337,8 +357,11 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
       :_type => type,
       :_routing => @routing ? event.sprintf(@routing) : nil
     }
-
-    params[:_upsert] = LogStash::Json.load(event.sprintf(@upsert)) if @action == 'update' && @upsert != ""
+    
+    if @action == 'update'
+      params[:_upsert] = LogStash::Json.load(event.sprintf(@upsert)) if @upsert != ""
+      params[:_script] = event.sprintf(@script) if @script != ""
+    end
 
     buffer_receive([event.sprintf(@action), params, event])
   end # def receive
