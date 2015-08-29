@@ -222,6 +222,15 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # Set script name for scripted update mode
   config :script, :validate => :string, :default => ""
 
+  # Define the type of script referenced by "script" variable
+  #  inline : "script" contains inline script
+  #  indexed : "script" contains the name of script directly indexed in elasticsearch
+  #  file    : "script" contains the name of script stored in elasticseach's config directory
+  config :script_type, :validate => ["inline", 'indexed', "file"]
+
+  # Set the language of the used script
+  config :script_lang, :validate => :string, :default => ""
+
   # Set variable name passed to script (scripted update)
   config :script_var_name, :validate => :string, :default => "event"
 
@@ -265,15 +274,11 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
       "doc_as_upsert and scripted_upsert are mutually exclusive."
     ) if @doc_as_upsert and @scripted_upsert
 
-    if ['node', 'transport'].include?(@protocol) and @script != ''
-      raise( Logstash::ConfigurationError,
-        "Scripted update for node and transport protocols is not implemented in elasticsearch output."
-      )
-    end
-
     update_options = {
       :doc_as_upsert => @doc_as_upsert,
       :script_var_name => @script_var_name,
+      :script_type => @script_type,
+      :script_lang => @script_lang,
       :scripted_upsert => @scripted_upsert
     }
     common_options.merge! update_options if @action == 'update'
