@@ -10,7 +10,9 @@ module LogStash; module Outputs; class ElasticSearch;
       common_options = {
         :client_settings => client_settings,
         :resurrect_delay => params["resurrect_delay"],
-        :healthcheck_path => params["healthcheck_path"]
+        :healthcheck_path => params["healthcheck_path"],
+        :target_bulk_megabytes => params["target_bulk_megabytes"],
+        :max_doc_megabytes => params["max_doc_megabytes"]
       }
 
       if params["sniffing"]

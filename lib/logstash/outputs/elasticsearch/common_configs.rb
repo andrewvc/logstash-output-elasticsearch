@@ -75,13 +75,14 @@ module LogStash; module Outputs; class ElasticSearch
       # to prevent LS from sending bulk requests to the master nodes.  So this parameter should only reference either data or client nodes in Elasticsearch.
       mod.config :hosts, :validate => :array, :default => ["127.0.0.1"]
 
+      # DEPRECATED. Prefer 'target_bulk_megabytes' setting instead
       # This plugin uses the bulk index API for improved indexing performance.
       # This setting defines the maximum sized bulk request Logstash will make
       # You you may want to increase this to be in line with your pipeline's batch size.
       # If you specify a number larger than the batch size of your pipeline it will have no effect,
       # save for the case where a filter increases the size of an inflight batch by outputting
       # events.
-      mod.config :flush_size, :validate => :number, :default => 500
+      mod.config :flush_size, :validate => :number, :default => 500, :deprecated => "Use `target_bulk_megabytes`"
 
       # The amount of time since last flush before a flush is forced.
       #

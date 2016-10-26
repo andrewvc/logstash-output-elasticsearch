@@ -21,16 +21,16 @@ require "uri" # for escaping user input
 # You can learn more about Elasticsearch at <https://www.elastic.co/products/elasticsearch>
 #
 # ==== Template management for Elasticsearch 5.x
-# Index template for this version (Logstash 5.0) has been changed to reflect Elasticsearch's mapping changes in version 5.0. 
-# Most importantly, the subfield for string multi-fields has changed from `.raw` to `.keyword` to match ES default 
+# Index template for this version (Logstash 5.0) has been changed to reflect Elasticsearch's mapping changes in version 5.0.
+# Most importantly, the subfield for string multi-fields has changed from `.raw` to `.keyword` to match ES default
 # behavior.
 #
 # ** Users installing ES 5.x and LS 5.x **
 # This change will not affect you and you will continue to use the ES defaults.
 #
 # ** Users upgrading from LS 2.x to LS 5.x with ES 5.x **
-# LS will not force upgrade the template, if `logstash` template already exists. This means you will still use 
-# `.raw` for sub-fields coming from 2.x. If you choose to use the new template, you will have to reindex your data after 
+# LS will not force upgrade the template, if `logstash` template already exists. This means you will still use
+# `.raw` for sub-fields coming from 2.x. If you choose to use the new template, you will have to reindex your data after
 # the new template is installed.
 #
 # ==== Retry Policy
@@ -146,7 +146,7 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # a timeout occurs, the request will be retried.
   config :timeout, :validate => :number, :default => 60
 
-  # Set the Elasticsearch errors in the whitelist that you don't want to log. 
+  # Set the Elasticsearch errors in the whitelist that you don't want to log.
   # A useful example is when you want to skip all 409 errors
   # which are `document_already_exists_exception`.
   config :failure_type_logging_whitelist, :validate => :array, :default => []
@@ -173,7 +173,7 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # Resurrection is the process by which backend endpoints marked 'down' are checked
   # to see if they have come back to life
   config :resurrect_delay, :validate => :number, :default => 5
-  
+
   # How long to wait before checking if the connection is stale before executing a request on a connection using keepalive.
   # You may want to set this lower, if you get connection errors regularly
   # Quoting the Apache commons docs (this client is based Apache Commmons):
@@ -183,6 +183,16 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # have become stale (half-closed) while kept inactive in the pool.'
   # See https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/impl/conn/PoolingHttpClientConnectionManager.html#setValidateAfterInactivity(int)[these docs for more info]
   config :validate_after_inactivity, :validate => :number, :default => 10000
+
+  # The target size of an HTTP request in megabytes to send. Elasticsearch has a hard limit of 100MB
+  # after which it will reject the request. If the batch received by this plugin exceeds this amount
+  # it will be split up and sent in multiple requests. A request may exceed this size if there is a single
+  # document larger than it. You can limit an individuals document's size with max_doc_megabytes
+  config :target_bulk_megabytes, :validate => :number, :default => 75
+
+  # The maximum size an individual document can be without being dropped and logged
+  # Elasticsearch will not accept HTTP requests > 100MB. You likely do not want to increase this size
+  config :max_doc_megabytes, :validate => :number, :default => 90
 
   def build_client
     @client = ::LogStash::Outputs::ElasticSearch::HttpClientBuilder.build(@logger, @hosts, params)

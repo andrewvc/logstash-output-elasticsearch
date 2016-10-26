@@ -17,6 +17,8 @@ module LogStash; module Outputs; class ElasticSearch;
       # Again, in case we use DEFAULT_OPTIONS in the future, uncomment this.
       # @options = DEFAULT_OPTIONS.merge(options)
       @options = options
+      @target_bulk_bytes = @options[:target_bulk_megabytes] / 1024 / 1024
+      @max_doc_bytes = @options[:max_doc_megabytes] / 1024 / 1024
       @pool = build_pool(@options)
       # mutex to prevent requests and sniffing to access the
       # connection pool at the same time
@@ -38,9 +40,11 @@ module LogStash; module Outputs; class ElasticSearch;
     def bulk(actions)
       @action_count ||= 0
       @action_count += actions.size
-      
+
       return if actions.empty?
-      bulk_body = actions.collect do |action, args, source|
+
+
+      bulk_actions = actions.collect do |action, args, source|
         args, source = update_action_builder(args, source) if action == 'update'
 
         if source && action != 'delete'
@@ -48,13 +52,33 @@ module LogStash; module Outputs; class ElasticSearch;
         else
           next { action => args }
         end
-      end.
-      flatten.
-      reduce("") do |acc,line|
-        acc << LogStash::Json.dump(line)
-        acc << "\n"
       end
 
+      bulk_body = ""
+      bulk_actions.each do |action|
+        as_json = action.is_a?(Array) ?
+                    action.map {|line| LogStash::Json.dump(line)}.join("\n") :
+                    LogStash::Json.dump(action)
+
+        if as_json.size > @max_doc_bytes
+          @logger.warn("Document too large for ES output! Dropping",
+                        :max_doc_megabytes => @options[:max_doc_megabytes],
+                        :bulk_action_size => as_json.size)
+          next
+        end
+
+        if (bulk_body.size + as_json.size) > @target_bulk_bytes
+          bulk_send(bulk_body << "\n")
+          bulk_body = as_json
+        else
+          bulk_body << as_json
+        end
+      end
+
+      bulk_send(bulk_body << "\n") if bulk_body.size > 0
+    end
+
+    def bulk_send(bulk_body)
       # Discard the URL
       url, response = @pool.post("_bulk", nil, bulk_body)
       LogStash::Json.load(response.body)
