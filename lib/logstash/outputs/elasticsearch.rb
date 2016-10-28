@@ -184,15 +184,15 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   # See https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/impl/conn/PoolingHttpClientConnectionManager.html#setValidateAfterInactivity(int)[these docs for more info]
   config :validate_after_inactivity, :validate => :number, :default => 10000
 
-  # The target size of an HTTP request in megabytes to send. Elasticsearch has a hard limit of 100MB
+  # The target size of an HTTP request in bytes to send. Elasticsearch has a hard limit of 100MB
   # after which it will reject the request. If the batch received by this plugin exceeds this amount
   # it will be split up and sent in multiple requests. A request may exceed this size if there is a single
-  # document larger than it. You can limit an individuals document's size with max_doc_megabytes
-  config :target_bulk_megabytes, :validate => :number, :default => 75
+  # document larger than it. You can limit an individuals document's size with max_doc_bytes
+  config :target_bulk_bytes, :validate => :string, :default => "75mb"
 
   # The maximum size an individual document can be without being dropped and logged
   # Elasticsearch will not accept HTTP requests > 100MB. You likely do not want to increase this size
-  config :max_doc_megabytes, :validate => :number, :default => 90
+  config :max_doc_bytes, :validate => :string, :default => "90mb"
 
   def build_client
     @client = ::LogStash::Outputs::ElasticSearch::HttpClientBuilder.build(@logger, @hosts, params)
@@ -207,6 +207,13 @@ class LogStash::Outputs::ElasticSearch < LogStash::Outputs::Base
   @@plugins.each do |plugin|
     name = plugin.name.split('-')[-1]
     require "logstash/outputs/elasticsearch/#{name}"
+  end
+
+  def initialize(*args)
+    super(*args)
+    # This is necessary until Logstash-core provides a `:validate => :bytes` setting.
+    @target_bulk_bytes = ByteValue.parse(@target_bulk_bytes)
+    @max_doc_bytes = ByteValue.parse(@max_doc_bytes)
   end
 
 end # class LogStash::Outputs::Elasticsearch

@@ -17,8 +17,8 @@ module LogStash; module Outputs; class ElasticSearch;
       # Again, in case we use DEFAULT_OPTIONS in the future, uncomment this.
       # @options = DEFAULT_OPTIONS.merge(options)
       @options = options
-      @target_bulk_bytes = @options[:target_bulk_megabytes] / 1024 / 1024
-      @max_doc_bytes = @options[:max_doc_megabytes] / 1024 / 1024
+      @target_bulk_bytes = @options[:target_bulk_bytes]
+      @max_doc_bytes = @options[:max_doc_bytes]
       @pool = build_pool(@options)
       # mutex to prevent requests and sniffing to access the
       # connection pool at the same time
@@ -62,7 +62,7 @@ module LogStash; module Outputs; class ElasticSearch;
 
         if as_json.size > @max_doc_bytes
           @logger.warn("Document too large for ES output! Dropping",
-                        :max_doc_megabytes => @options[:max_doc_megabytes],
+                        :max_doc_bytes => @options[:max_doc_bytes],
                         :bulk_action_size => as_json.size)
           next
         end
