@@ -1,4 +1,5 @@
 require "logstash/outputs/elasticsearch/template_manager"
+require_relative "byte_value"
 
 module LogStash; module Outputs; class ElasticSearch;
   module Common

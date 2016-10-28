@@ -3,9 +3,9 @@ require "logstash/outputs/elasticsearch/http_client"
 require "java"
 
 describe LogStash::Outputs::ElasticSearch::HttpClient do
-  let(:target_bulk_megabytes) { 75 }
-  let(:max_doc_megabytes) { 90 }
-  let(:base_options) { {:hosts => ["127.0.0.1"], :logger => Cabin::Channel.get, :target_bulk_megabytes => target_bulk_megabytes, :max_doc_megabytes => max_doc_megabytes }}
+  let(:target_bulk_bytes) { 75<<20 }
+  let(:max_doc_bytes) { 90<<20 }
+  let(:base_options) { {:hosts => ["127.0.0.1"], :logger => Cabin::Channel.get, :target_bulk_bytes => target_bulk_bytes, :max_doc_bytes => max_doc_bytes }}
 
   describe "Host/URL Parsing" do
     subject { described_class.new(base_options) }
