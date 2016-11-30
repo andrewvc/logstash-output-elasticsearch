@@ -16,6 +16,7 @@ module LogStash; module Outputs; class ElasticSearch; class HttpClient;
       @options[:cookies] = false
 
       @request_options = @options[:headers] ? {:headers => @options[:headers]} : {}
+      
       @manticore = ::Manticore::Client.new(@options)
     end
 
