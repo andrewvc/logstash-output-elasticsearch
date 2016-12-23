@@ -28,82 +28,85 @@ describe "Versioned indexing", :integration => true, :version_greater_than_equal
   end
 
   context "when index only" do
-
-    subject(:unversioned_output) { 
-      settings = {
-	"manage_template" => true,
-	"index" => "logstash-index",
-	"template_overwrite" => true,
-	"hosts" => get_host_port(),
-	"action" => "index",
-	"script_lang" => "groovy",
-        "document_id" => "%{my_id}"
-      }
-      out = LogStash::Outputs::ElasticSearch.new(settings)
-      out.register
-      out
-    }
-
-    it "should default to ES version" do
-      unversioned_output.multi_receive([LogStash::Event.new("my_id" => "123", "message" => "foo")])
-      r = @es.get(:index => 'logstash-index', :type => 'logs', :id => "123", :refresh => true)
-      insist { r["_version"] } == 1
-      insist { r["_source"]["message"] } == 'foo'
-      unversioned_output.multi_receive([LogStash::Event.new("my_id" => "123", "message" => "foobar")])
-      r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => "123", :refresh => true)
-      insist { r2["_version"] } == 2
-      insist { r2["_source"]["message"] } == 'foobar'
+    subject { LogStash::Outputs::ElasticSearch.new(settings) }
+    
+    before do
+      subject.register
     end
-
-    subject(:versioned_output) { 
-      settings = {
-	"manage_template" => true,
-	"index" => "logstash-index",
-	"template_overwrite" => true,
-	"hosts" => get_host_port(),
-	"action" => "index",
-	"script_lang" => "groovy",
-        "document_id" => "%{my_id}",
-       	"version" => "%{my_version}",
-       	"version_type" => "external",
-      }
-      out = LogStash::Outputs::ElasticSearch.new(settings)
-      out.register
-      out
-    }
-
-    it "should respect the external version" do
-      id = "ev1"
-      versioned_output.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
-      r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
-      insist { r["_version"] } == 99
-      insist { r["_source"]["message"] } == 'foo'
+    
+    describe "unversioned output" do
+      let(:settings) do
+        {
+        	"manage_template" => true,
+        	"index" => "logstash-index",
+        	"template_overwrite" => true,
+        	"hosts" => get_host_port(),
+        	"action" => "index",
+        	"script_lang" => "groovy",
+          "document_id" => "%{my_id}"
+        }
+      end
+      
+      it "should default to ES version" do
+        subject.multi_receive([LogStash::Event.new("my_id" => "123", "message" => "foo")])
+        r = @es.get(:index => 'logstash-index', :type => 'logs', :id => "123", :refresh => true)
+        expect(r["_version"]).to eq(1)
+        expect(r["_source"]["message"]).to eq('foo')
+        subject.multi_receive([LogStash::Event.new("my_id" => "123", "message" => "foobar")])
+        r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => "123", :refresh => true)
+        expect(r2["_version"]).to eq(2)
+        expect(r2["_source"]["message"]).to eq('foobar')
+      end  
     end
+    
+    describe "versioned output" do
+      let(:settings) do 
+        {
+  	      "manage_template" => true,
+          "index" => "logstash-index",
+          "template_overwrite" => true,
+  	      "hosts" => get_host_port(),
+  	      "action" => "index",
+  	      "script_lang" => "groovy",
+          "document_id" => "%{my_id}",
+         	"version" => "%{my_version}",
+         	"version_type" => "external",
+        }
+      end
+      
+      it "should respect the external version" do
+        id = "ev1"
+        subject.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
+        r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
+        expect(r["_version"]).to eq(99)
+        expect(r["_source"]["message"]).to eq('foo')
+      end
 
-    it "should ignore non-monotonic external version updates" do
-      id = "ev2"
-      versioned_output.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
-      r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
-      insist { r["_version"] } == 99
-      insist { r["_source"]["message"] } == 'foo'
+      it "should ignore non-monotonic external version updates" do
+        id = "ev2"
+        subject.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
+        r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
+        expect(r["_version"]).to eq(99)
+        expect(r["_source"]["message"]).to eq('foo')
 
-      versioned_output.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "98", "message" => "foo")])
-      r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
-      insist { r2["_version"] } == 99
-      insist { r2["_source"]["message"] } == 'foo'
-    end
+        subject.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "98", "message" => "foo")])
+        r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
+        expect(r2["_version"]).to eq(99)
+        expect(r2["_source"]["message"]).to eq('foo')
+      end
 
-    it "should commit monotonic external version updates" do
-      id = "ev3"
-      versioned_output.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
-      r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
-      insist { r["_version"] } == 99
-      insist { r["_source"]["message"] } == 'foo'
+      it "should commit monotonic external version updates" do
+        id = "ev3"
+        subject.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "99", "message" => "foo")])
+        r = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
+        expect(r["_version"]).to eq(99)
+        expect(r["_source"]["message"]).to eq('foo')
 
-      versioned_output.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "100", "message" => "foo")])
-      r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
-      insist { r2["_version"] } == 100
-      insist { r2["_source"]["message"] } == 'foo'
+        subject.multi_receive([LogStash::Event.new("my_id" => id, "my_version" => "100", "message" => "foo")])
+        r2 = @es.get(:index => 'logstash-index', :type => 'logs', :id => id, :refresh => true)
+        expect(r2["_version"]).to eq(100)
+        expect(r2["_source"]["message"]).to eq('foo')
+      end
     end
   end
 end
